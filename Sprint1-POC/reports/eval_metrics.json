@@ -1,0 +1,60 @@
+{
+  "val": {
+    "metrics/precision(B)": 0.6997880926614878,
+    "metrics/recall(B)": 0.6528607049286907,
+    "metrics/mAP50(B)": 0.6756520916954617,
+    "metrics/mAP50-95(B)": 0.38007978068006176,
+    "fitness": 0.38007978068006176,
+    "per_class": {
+      "fracture": {
+        "ap50": 0.9466,
+        "ap50_95": 0.5627
+      },
+      "metal_implant": {
+        "ap50": 0.8583,
+        "ap50_95": 0.6224
+      },
+      "periosteal_reaction": {
+        "ap50": 0.679,
+        "ap50_95": 0.2914
+      },
+      "pronator_sign": {
+        "ap50": 0.6916,
+        "ap50_95": 0.3361
+      },
+      "soft_tissue": {
+        "ap50": 0.2028,
+        "ap50_95": 0.0878
+      }
+    }
+  },
+  "test": {
+    "metrics/precision(B)": 0.6931676524390677,
+    "metrics/recall(B)": 0.6970610580002954,
+    "metrics/mAP50(B)": 0.6849539314620126,
+    "metrics/mAP50-95(B)": 0.39128139123449945,
+    "fitness": 0.39128139123449945,
+    "per_class": {
+      "fracture": {
+        "ap50": 0.9385,
+        "ap50_95": 0.5495
+      },
+      "metal_implant": {
+        "ap50": 0.8646,
+        "ap50_95": 0.6641
+      },
+      "periosteal_reaction": {
+        "ap50": 0.6494,
+        "ap50_95": 0.2875
+      },
+      "pronator_sign": {
+        "ap50": 0.6654,
+        "ap50_95": 0.3237
+      },
+      "soft_tissue": {
+        "ap50": 0.3068,
+        "ap50_95": 0.1317
+      }
+    }
+  }
+}

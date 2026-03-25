@@ -1,0 +1,23 @@
+# Raw dataset — too large
+dataset/
+
+# Processed YOLO dataset — too large
+data/yolo_dataset/
+
+# Disk cache files from training
+*.npy
+*.cache
+
+# Python cache
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Temp files
+_upload_tmp.png
+runs/
+
+# Last checkpoint — not needed
+Sprint1-POC/models/sprint1_yolo11x/weights/last.pt
+
+# Large model weight files — exceed GitHub 100MB limit

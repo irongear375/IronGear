@@ -1,0 +1,13 @@
+{
+  "dataset_csv": "/home/sagemaker-user/user-default-efs/IronGear/dataset/dataset.csv",
+  "meta_yaml": "/home/sagemaker-user/user-default-efs/IronGear/dataset/folder_structure/yolov5/meta.yaml",
+  "labels_dir": "/home/sagemaker-user/user-default-efs/IronGear/dataset/folder_structure/yolov5/labels",
+  "image_dirs": [
+    "/home/sagemaker-user/user-default-efs/IronGear/dataset/images_part1",
+    "/home/sagemaker-user/user-default-efs/IronGear/dataset/images_part2",
+    "/home/sagemaker-user/user-default-efs/IronGear/dataset/images_part3",
+    "/home/sagemaker-user/user-default-efs/IronGear/dataset/images_part4"
+  ],
+  "extract_dir": "/home/sagemaker-user/user-default-efs/IronGear/dataset",
+  "data_dir": "/home/sagemaker-user/user-default-efs/IronGear/data"
+}

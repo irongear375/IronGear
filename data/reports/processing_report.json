@@ -1,0 +1,46 @@
+{
+  "generated_at": "2026-03-23T11:45:16.002601",
+  "total_source_images": 20327,
+  "unique_patients": 6091,
+  "base_split_images": {
+    "train": 14243,
+    "val": 2969,
+    "test": 3115
+  },
+  "final_split_images": {
+    "train": 23454,
+    "val": 2969,
+    "test": 3115
+  },
+  "split_patients": {
+    "train": 4263,
+    "val": 914,
+    "test": 914
+  },
+  "annotations_kept": 23392,
+  "annotations_dropped": 24051,
+  "negative_images": 6495,
+  "per_class_annotations": {
+    "fracture": 18090,
+    "pronator_sign": 567,
+    "periosteal_reaction": 3453,
+    "soft_tissue": 464,
+    "metal_implant": 818
+  },
+  "oversample_config": {
+    "metal_implant": 5,
+    "periosteal_reaction": 2,
+    "pronator_sign": 5,
+    "soft_tissue": 6
+  },
+  "oversampled_copies_added": {
+    "metal_implant": 2375,
+    "periosteal_reaction": 3090,
+    "pronator_sign": 1910,
+    "soft_tissue": 1836
+  },
+  "leakage_check": "PASSED",
+  "seed": 42,
+  "dataset_yaml": "/home/sagemaker-user/user-default-efs/IronGear/data/yolo_dataset/dataset.yaml",
+  "master_index_csv": "/home/sagemaker-user/user-default-efs/IronGear/data/reports/master_index.csv"
+}

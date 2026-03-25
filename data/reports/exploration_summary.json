@@ -1,0 +1,64 @@
+{
+  "generated_at": "2026-03-23T10:44:23.624651",
+  "dataset": "GRAZPEDWRI-DX",
+  "source_url": "https://www.kaggle.com/datasets/jasonroggy/grazpedwri-dx",
+  "total_images": 20327,
+  "total_label_files": 20327,
+  "empty_label_files": 15,
+  "total_annotations": 47443,
+  "image_folders": [
+    "images_part1",
+    "images_part2",
+    "images_part3",
+    "images_part4"
+  ],
+  "unique_patients": 6091,
+  "avg_images_per_patient": 3.34,
+  "median_images_per_patient": 2.0,
+  "max_images_per_patient": 30,
+  "raw_classes": {
+    "0": "boneanomaly",
+    "1": "bonelesion",
+    "2": "foreignbody",
+    "3": "fracture",
+    "4": "metal",
+    "5": "periostealreaction",
+    "6": "pronatorsign",
+    "7": "softtissue",
+    "8": "text"
+  },
+  "annotations_per_class": {
+    "text": 23722,
+    "fracture": 18090,
+    "pronatorsign": 567,
+    "periostealreaction": 3453,
+    "softtissue": 464,
+    "metal": 818,
+    "boneanomaly": 276,
+    "bonelesion": 45,
+    "foreignbody": 8
+  },
+  "images_per_class": {
+    "text": 20274,
+    "fracture": 13550,
+    "pronatorsign": 566,
+    "periostealreaction": 2235,
+    "softtissue": 439,
+    "metal": 707,
+    "boneanomaly": 192,
+    "bonelesion": 42,
+    "foreignbody": 8
+  },
+  "sprint1_classes": [
+    "fracture",
+    "metal",
+    "periostealreaction",
+    "pronatorsign",
+    "softtissue"
+  ],
+  "sprint2_additional": [
+    "boneanomaly",
+    "bonelesion",
+    "foreignbody"
+  ]
+}

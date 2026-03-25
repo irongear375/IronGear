@@ -1,0 +1,31 @@
+sample,image,split,gt_classes,predicted,n_boxes,result
+1,3834_0546460646_01_WRI-L1_F008.png,train,fracture,fracture,2,CORRECT
+2,0916_0957506390_01_WRI-L2_M007.png,train,fracture,"fracture, soft_tissue",2,PARTIAL
+3,5292_0539772749_01_WRI-R1_M009.png,train,fracture,fracture,1,CORRECT
+4,3507_0703840459_05_WRI-L2_F006.png,train,fracture,fracture,1,CORRECT
+5,3830_0802835653_02_WRI-R1_M015.png,test,metal_implant,"fracture, metal_implant",4,PARTIAL
+6,5012_0580150791_01_WRI-L2_M001.png,val,metal_implant,–,0,MISSED
+7,3830_0802835687_02_WRI-R2_M015.png,test,metal_implant,"metal_implant, soft_tissue",2,PARTIAL
+8,1524_0639700228_01_WRI-R2_F017.png,train,metal_implant,metal_implant,1,CORRECT
+9,0909_0332022531_03_WRI-L1_M012.png,train,periosteal_reaction,"fracture, periosteal_reaction",3,PARTIAL
+10,5081_0367754794_04_WRI-L1_F006.png,train,periosteal_reaction,"fracture, periosteal_reaction",5,PARTIAL
+11,5969_0684585258_01_WRI-R2_M010.png,train,periosteal_reaction,"fracture, periosteal_reaction",5,PARTIAL
+12,3838_0526782714_03_WRI-L2_M004.png,train,periosteal_reaction,"fracture, periosteal_reaction",6,PARTIAL
+13,0880_0365939871_01_WRI-L2_M013.png,train,pronator_sign,pronator_sign,1,CORRECT
+14,2852_1181805616_01_WRI-R2_F010.png,train,pronator_sign,"fracture, pronator_sign",3,PARTIAL
+15,4226_0502631328_01_WRI-R2_M014.png,train,pronator_sign,pronator_sign,1,CORRECT
+16,0739_0685850011_02_WRI-R2_M013.png,val,pronator_sign,"pronator_sign, soft_tissue",2,PARTIAL
+17,2334_0299132767_01_WRI-L1_M014.png,test,soft_tissue,soft_tissue,1,CORRECT
+18,3687_0733431856_01_WRI-R2_F015.png,train,soft_tissue,soft_tissue,1,CORRECT
+19,4370_0636781598_02_WRI-L2_M016.png,train,soft_tissue,soft_tissue,1,CORRECT
+20,4916_0559516565_01_WRI-L2_M017.png,train,soft_tissue,soft_tissue,1,CORRECT
+21,5048_0686204981_03_WRI-L1_F014.png,train,"fracture, periosteal_reaction","fracture, periosteal_reaction",4,CORRECT
+22,4670_0703579809_01_WRI-R2_F009.png,train,"fracture, metal_implant","fracture, metal_implant",4,CORRECT
+23,1463_0419616714_04_WRI-R2_M016.png,train,"fracture, periosteal_reaction","fracture, periosteal_reaction",2,CORRECT
+24,1587_1286673295_04_WRI-L2_F007.png,train,"fracture, periosteal_reaction","fracture, periosteal_reaction",3,CORRECT
+25,3063_1077979080_02_WRI-R1_F013.png,train,–,–,0,NEGATIVE
+26,4939_0544278560_02_WRI-R1_M012.png,train,–,–,0,NEGATIVE
+27,0793_0901644365_01_WRI-L1_F008.png,val,–,fracture,1,NEGATIVE
+28,3397_0714155676_01_WRI-L1_F009.png,train,–,fracture,1,NEGATIVE
+29,0257_0821248914_01_WRI-R2_F010.png,train,–,–,0,NEGATIVE
+30,1867_0534802360_01_WRI-L1_F011.png,val,–,–,0,NEGATIVE
