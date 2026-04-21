@@ -1,0 +1,40 @@
+{
+  "sprint": 2,
+  "experiment": "B",
+  "experiment_name": "B_base_res_baseline",
+  "experiment_owner": "Vaibhav Bairathi",
+  "hypothesis": "Isolate resolution effect \u2014 same aug as A but imgsz=640",
+  "completed_at": "2026-04-16T11:18:22.753270",
+  "training_minutes": 0,
+  "gate_passed": true,
+  "map50": 0.8423,
+  "map50_95": 0.5506,
+  "precision": 0.8112,
+  "recall": 0.8372,
+  "per_class_ap50": {
+    "fracture": 0.9412,
+    "metal_implant": 0.9062,
+    "periosteal_reaction": 0.6951,
+    "pronator_sign": 0.678,
+    "text": 0.9908
+  },
+  "config": {
+    "imgsz": 640,
+    "batch": 32,
+    "epochs": 150,
+    "patience": 15,
+    "mixup": 0.15,
+    "copy_paste": 0.3,
+    "cls": 1.5,
+    "box": 8.0
+  },
+  "sprint1_baseline": {
+    "map50": 0.685,
+    "per_class_ap50": {
+      "fracture": 0.939,
+      "metal_implant": 0.865,
+      "periosteal_reaction": 0.649,
+      "pronator_sign": 0.665
+    }
+  }
+}

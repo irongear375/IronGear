@@ -1,0 +1,16 @@
+{
+  "image": "0078_1212376663_01_WRI-L2_M011.png",
+  "category": "CORRECT",
+  "latency_ms": 97.03660011291504,
+  "report": {
+    "request_id": "cdc4ce7d-8667-4a1d-80d5-e683ed970190",
+    "model_version": "sprint2_yolo11l_expB_v1",
+    "timestamp": "2026-04-20T14:37:08.020971+00:00",
+    "laterality": "Unknown",
+    "raw_text_detected": [],
+    "findings_detected": [
+      {
+        "class_name": "fracture",
+        "confidence": 0.7665,
+        "box": [
+          

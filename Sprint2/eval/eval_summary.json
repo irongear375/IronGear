@@ -1,0 +1,25 @@
+{
+  "sprint": 2,
+  "approved": true,
+  "criteria": {
+    "mAP50 > 0.685": true,
+    "fracture_AP >= 0.9": true
+  },
+  "map50": 0.801,
+  "map50_95": 0.4815,
+  "precision": 0.765,
+  "recall": 0.8234,
+  "per_class_ap50": {
+    "fracture": 0.9115,
+    "metal_implant": 0.8512,
+    "periosteal_reaction": 0.6344,
+    "pronator_sign": 0.6179,
+    "text": 0.9901
+  },
+  "sprint1_baseline_per_class": {
+    "fracture": 0.939,
+    "metal_implant": 0.865,
+    "periosteal_reaction": 0.649,
+    "pronator_sign": 0.665
+  }
+}

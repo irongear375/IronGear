@@ -1,0 +1,19 @@
+{
+  "pipeline_version": "sprint2_v2",
+  "experiment": "B",
+  "experiment_name": "B_base_res_baseline",
+  "experiment_owner": "Vaibhav Bairathi",
+  "hypothesis": "Isolate resolution effect \u2014 same aug as A but imgsz=640",
+  "started_at": "2026-04-16T11:03:07.436533",
+  "stages_completed": [
+    "environment_check",
+    "data_extraction",
+    "data_validation",
+    "data_preparation",
+    "model_evaluation",
+    "model_validation"
+  ],
+  "stages_failed": [],
+  "gate_passed": true,
+  "completed_at": "2026-04-16T11:18:22.753518"
+}
