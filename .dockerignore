@@ -1,0 +1,38 @@
+# ── Git ──
+.git
+.gitignore
+.gitattributes
+
+# ── Documentation (not needed in container) ──
+*.md
+*.pdf
+*.docx
+*.pptx
+docs/
+
+# ── Sprint 1 (frozen, not needed in production) ──
+Sprint1/
+
+# ── Sprint 2 notebooks (only models/ and utils/ needed) ──
+Sprint2/notebooks/
+Sprint2/clearml_pipeline/
+
+# ── Sprint 3 docs and reflections ──
+Sprint3/docs/
+Sprint3/reflections/
+Sprint3/configs/
+
+# ── Data (never bundled in container) ──
+data/
+*.zip
+
+# ── IDE and OS ──
+.vscode/
+.idea/
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db
+
+# ── CI/CD (not needed in container) ──
+.github/
