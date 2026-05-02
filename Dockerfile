@@ -34,7 +34,12 @@ RUN pip install --no-cache-dir \
     && pip install --no-cache-dir -r /tmp/requirements.txt \
     && rm /tmp/requirements.txt
 
-
+# ── Strip unnecessary PyTorch files to save ~200 MB ──
+RUN rm -rf /usr/local/lib/python3.11/site-packages/torch/test \
+           /usr/local/lib/python3.11/site-packages/torch/include \
+           /usr/local/lib/python3.11/site-packages/torch/share \
+    && find /usr/local/lib/python3.11/site-packages -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true \
+    && find /usr/local/lib/python3.11/site-packages -type d -name "tests" -exec rm -rf {} + 2>/dev/null || true
 
 # ── Application code ──
 WORKDIR /app
