@@ -131,7 +131,7 @@ def extract_laterality(img: np.ndarray, text_boxes: list) -> dict:
     Uses aggressive preprocessing because X-ray lead markers are typically
     white text on dark background with thin strokes.
     """
-    global ocr_reader
+    
     laterality = "Unknown"
     raw_texts = []
 
