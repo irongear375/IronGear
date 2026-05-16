@@ -1,0 +1,207 @@
+# ============================================================================
+# WristAssist AI — Retraining Trigger Workflow
+# SCRUM-55: Drift-triggered retraining via repository_dispatch
+#
+# Triggers: repository_dispatch event with type "drift-alert"
+#           (fired by drift.py when PSI > 0.25)
+# Action:  Creates a GitHub issue documenting the drift + submits a
+#          ClearML retraining task to the agent queue
+#
+# NOTE: This workflow does NOT train the model itself — GitHub Actions
+# runners have no GPU. It submits a task to a ClearML agent queue.
+# An operator must run clearml-agent on a GPU machine to execute the
+# actual training.
+# ============================================================================
+
+name: Retrain — Drift-Triggered
+
+on:
+  repository_dispatch:
+    types: [drift-alert]
+
+  # Manual trigger for testing
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Reason for manual retrain trigger"
+        required: true
+        default: "Manual retrain request"
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  # ────────────────────────────────────────────────────────────
+  # Job 1: Create drift alert issue
+  # ────────────────────────────────────────────────────────────
+  create-issue:
+    name: Create Drift Alert Issue
+    runs-on: ubuntu-latest
+
+    outputs:
+      issue_number: ${{ steps.create.outputs.issue_number }}
+
+    steps:
+      - name: Extract drift payload
+        id: drift
+        run: |
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            echo "trigger=drift-alert" >> $GITHUB_OUTPUT
+            echo "overall_psi=${{ github.event.client_payload.overall_psi }}" >> $GITHUB_OUTPUT
+            echo "model_version=${{ github.event.client_payload.model_version }}" >> $GITHUB_OUTPUT
+            echo "computed_at=${{ github.event.client_payload.computed_at }}" >> $GITHUB_OUTPUT
+            echo "alert_classes=${{ join(github.event.client_payload.alert_classes, ', ') }}" >> $GITHUB_OUTPUT
+          else
+            echo "trigger=manual" >> $GITHUB_OUTPUT
+            echo "overall_psi=N/A" >> $GITHUB_OUTPUT
+            echo "model_version=sprint2_yolo11l_expB_v1" >> $GITHUB_OUTPUT
+            echo "computed_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
+            echo "alert_classes=manual trigger" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create GitHub issue
+        id: create
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const trigger = '${{ steps.drift.outputs.trigger }}';
+            const psi = '${{ steps.drift.outputs.overall_psi }}';
+            const model = '${{ steps.drift.outputs.model_version }}';
+            const computedAt = '${{ steps.drift.outputs.computed_at }}';
+            const alertClasses = '${{ steps.drift.outputs.alert_classes }}';
+            const reason = '${{ github.event.inputs.reason || 'Automated drift detection' }}';
+
+            const title = trigger === 'drift-alert'
+              ? `🔄 Drift Alert: PSI=${psi} — Retraining Required`
+              : `🔄 Manual Retrain: ${reason}`;
+
+            const body = `## Retraining Trigger
+
+            | Field | Value |
+            |-------|-------|
+            | **Trigger** | ${trigger} |
+            | **Overall PSI** | ${psi} |
+            | **Alert Classes** | ${alertClasses} |
+            | **Current Model** | ${model} |
+            | **Detected At** | ${computedAt} |
+            | **Reason** | ${reason} |
+
+            ## Action Required
+
+            1. An operator must run \`clearml-agent\` on a GPU machine (Kaggle/SageMaker)
+            2. The agent will pick up the retraining task from the queue
+            3. After training completes, the new model must pass the approval gate:
+               - mAP@0.5 > 0.685
+               - Fracture AP@0.5 ≥ 0.90
+            4. On pass, push the new \`best.pt\` to the repo to trigger CD
+
+            ## Retraining Command
+
+            \`\`\`bash
+            python Sprint3/pipeline/pipeline_controller.py \\
+              --mode full \\
+              --experiment B \\
+              --config experiment_config.yaml
+            \`\`\`
+
+            ---
+            *This issue was auto-created by the drift-triggered retraining workflow.*`;
+
+            const issue = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: title,
+              body: body,
+              labels: ['retraining', 'drift-alert', 'automated'],
+            });
+
+            core.setOutput('issue_number', issue.data.number);
+            console.log(`Created issue #${issue.data.number}`);
+
+  # ────────────────────────────────────────────────────────────
+  # Job 2: Submit ClearML retraining task
+  # ────────────────────────────────────────────────────────────
+  submit-retrain:
+    name: Submit Retraining Task
+    runs-on: ubuntu-latest
+    needs: create-issue
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          pip install clearml pyyaml
+
+      - name: Submit retraining task to ClearML queue
+        env:
+          CLEARML_API_ACCESS_KEY: ${{ secrets.CLEARML_API_ACCESS_KEY }}
+          CLEARML_API_SECRET_KEY: ${{ secrets.CLEARML_API_SECRET_KEY }}
+          CLEARML_API_HOST: ${{ secrets.CLEARML_API_HOST }}
+        run: |
+          python -c "
+          from clearml import Task
+          import yaml, json
+
+          # Load config
+          with open('experiment_config.yaml', 'r') as f:
+              config = yaml.safe_load(f)
+
+          prod = config['production']
+          experiment = prod['experiment']
+          exp_params = config['experiments'][experiment]
+
+          # Create a new task for retraining
+          task = Task.init(
+              project_name=config['infrastructure']['clearml_project'],
+              task_name=f'Retrain triggered by drift — Exp {experiment}',
+              task_type=Task.TaskTypes.training,
+          )
+
+          task.add_tags([
+              'retrain',
+              'drift-triggered',
+              f'exp_{experiment}',
+              f'issue_${{ needs.create-issue.outputs.issue_number }}',
+          ])
+
+          # Set hyperparameters from config
+          task.connect({
+              'experiment': experiment,
+              'mode': 'full',
+              'model': exp_params['model'],
+              'imgsz': exp_params['imgsz'],
+              'batch': exp_params['batch'],
+              'epochs': exp_params.get('epochs', 100),
+              'patience': exp_params.get('patience', 15),
+              'mixup': exp_params.get('mixup', 0.0),
+              'copy_paste': exp_params.get('copy_paste', 0.0),
+              'cls': exp_params.get('cls', 0.5),
+              'trigger': 'drift-alert',
+              'github_issue': '${{ needs.create-issue.outputs.issue_number }}',
+          })
+
+          # Enqueue to the default queue for a clearml-agent to pick up
+          Task.enqueue(task, queue_name='default')
+
+          print(f'Retraining task submitted: {task.id}')
+          print(f'Queue: default')
+          print(f'Experiment: {experiment}')
+          print(f'Linked to issue #{int(\"${{ needs.create-issue.outputs.issue_number }}\")}')
+          print()
+          print('An operator must run clearml-agent on a GPU machine to execute training.')
+          "
+
+      - name: Post summary
+        run: |
+          echo "## Retraining Submitted" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Issue:** #${{ needs.create-issue.outputs.issue_number }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Queue:** default (ClearML)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Action:** Operator must run \`clearml-agent\` on GPU to execute" >> $GITHUB_STEP_SUMMARY

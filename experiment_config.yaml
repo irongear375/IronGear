@@ -1,0 +1,173 @@
+# ============================================================================
+# WristAssist AI — Experiment Configuration
+# SCRUM-64: Config-driven experiment YAML
+#
+# This file defines the complete experiment configuration consumed by:
+#   - data_processing.py  (SCRUM-63: class schema, oversampling, splits)
+#   - ClearML pipeline     (SCRUM-52: training hyperparameters)
+#   - CI workflow           (SCRUM-50: validation targets)
+#
+# To run a new experiment: copy this file, change parameters, and pass
+# the path via --config flag. No code changes required.
+# ============================================================================
+
+# ── Dataset ──
+dataset:
+  name: "GRAZPEDWRI-DX"
+  total_images: 20327
+  total_patients: 6091
+  # Patient-level split ratios (must sum to 1.0)
+  split_ratios:
+    train: 0.70
+    val: 0.15
+    test: 0.15
+  # Path to master_index.csv from Sprint 1 (preserves patient-level split)
+  master_index: "master_index.csv"
+
+# ── Class Schema ──
+# Maps raw GRAZPEDWRI-DX class IDs (0-8) to project class IDs
+# Set to null/DROP to exclude a class
+class_schema:
+  # Project 5-class schema (locked from Sprint 2)
+  num_classes: 5
+  names:
+    0: "fracture"
+    1: "metal_implant"
+    2: "periosteal_reaction"
+    3: "pronator_sign"
+    4: "text"
+  # Raw GRAZPEDWRI-DX ID → Project ID mapping
+  raw_to_project:
+    0: 0    # fracture → fracture
+    1: null # boneanomaly → DROP
+    2: null # bonelesion → DROP
+    3: null # foreignbody → DROP
+    4: 1    # metal_implant → metal_implant (project ID 1)
+    5: 2    # periosteal_reaction → periosteal_reaction (project ID 2)
+    6: 3    # pronator_sign → pronator_sign (project ID 3)
+    7: null # softtissue → DROP (poor AP in Sprint 1)
+    8: 4    # text → text (project ID 4)
+
+# ── Oversampling ──
+# Applied to training split ONLY. Multiplier means total copies:
+# ×2 = original + 1 copy, ×5 = original + 4 copies.
+# Only images containing the specified class get oversampled.
+oversampling:
+  enabled: true
+  multipliers:
+    metal_implant: 5
+    periosteal_reaction: 2
+    pronator_sign: 5
+    # fracture: 1 (no oversampling — dominant class)
+    # text: 1 (no oversampling — 23,722 boxes already)
+
+# ── Training Hyperparameters ──
+# Three experiment variants from Sprint 2 (B selected as production)
+experiments:
+  A:
+    description: "High resolution + heavy augmentation"
+    model: "yolo11l.pt"
+    imgsz: 1280
+    batch: 8
+    epochs: 100
+    patience: 15
+    mixup: 0.15
+    copy_paste: 0.3
+    cls: 1.5
+    optimizer: "auto"
+    lr0: 0.01
+    lrf: 0.01
+    warmup_epochs: 3
+    augment: true
+    mosaic: 1.0
+    fliplr: 0.5
+
+  B:
+    description: "Base resolution + heavy augmentation (PRODUCTION)"
+    model: "yolo11l.pt"
+    imgsz: 640
+    batch: 16
+    epochs: 100
+    patience: 15
+    mixup: 0.15
+    copy_paste: 0.3
+    cls: 1.5
+    optimizer: "auto"
+    lr0: 0.01
+    lrf: 0.01
+    warmup_epochs: 3
+    augment: true
+    mosaic: 1.0
+    fliplr: 0.5
+
+  C:
+    description: "High resolution + light augmentation (control)"
+    model: "yolo11l.pt"
+    imgsz: 1280
+    batch: 8
+    epochs: 100
+    patience: 15
+    mixup: 0.0
+    copy_paste: 0.0
+    cls: 0.5
+    optimizer: "auto"
+    lr0: 0.01
+    lrf: 0.01
+    warmup_epochs: 3
+    augment: true
+    mosaic: 1.0
+    fliplr: 0.5
+
+# ── Production Model ──
+production:
+  experiment: "B"
+  model_version: "sprint2_yolo11l_expB_v1"
+  confidence_threshold: 0.42
+
+# ── Approval Gate ──
+# Model must pass ALL conditions to be approved for deployment
+approval_gate:
+  mAP50_min: 0.685          # Sprint 1 baseline
+  fracture_AP50_min: 0.90   # Clinical safety threshold
+  fracture_recall_min: 0.85  # Minimum fracture sensitivity
+
+# ── Drift Detection Baseline ──
+# From Experiment B evaluation on locked test split (3,115 images)
+drift_baseline:
+  class_rates:
+    fracture: 0.6685
+    metal_implant: 0.0405
+    periosteal_reaction: 0.1117
+    pronator_sign: 0.0311
+    text: 0.9949
+  psi_warn: 0.10
+  psi_alert: 0.25
+
+# ── Hyperparameter Optimisation (HPO) ──
+# ClearML HyperParameterOptimizer settings for stage_hpo
+# Requires 2+ workers in the ClearML queue (1 for HPO controller + 1 for trials)
+hpo:
+  enabled: true
+  max_jobs: 5                  # Total HPO trials to run
+  time_limit_minutes: 120      # Wall-clock budget for HPO
+  queue: "default"             # ClearML queue for training jobs
+  # Search space (centred around Experiment B production values)
+  search_space:
+    batch: { min: 8, max: 32, step: 8 }
+    epochs: { min: 30, max: 100, step: 10 }
+    lr0: { min: 0.0001, max: 0.01, step: 0.001 }
+    mixup: { min: 0.0, max: 0.3, step: 0.05 }
+    copy_paste: { min: 0.0, max: 0.5, step: 0.1 }
+    cls: { min: 0.5, max: 2.0, step: 0.25 }
+  # Objective metric to maximise
+  objective:
+    title: "val"
+    series: "mAP50"
+    sign: "max"
+
+# ── Infrastructure ──
+infrastructure:
+  clearml_project: "IronGear/WristAssist"
+  github_repo: "irongear375/IronGear"
+  hf_space: "irongear375/wristassist"
+  deployment_port: 7860

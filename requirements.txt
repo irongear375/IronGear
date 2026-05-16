@@ -1,0 +1,20 @@
+# WristAssist AI — Sprint 3 Production Dependencies
+# Pinned for reproducibility. Update with care.
+
+# ── ML / AI ──
+ultralytics>=8.1.0,<9.0.0       # YOLO11l inference
+torch>=2.1.0,<3.0.0             # PyTorch CPU (CUDA stripped in Dockerfile)
+torchvision>=0.16.0,<1.0.0      # Required by ultralytics
+easyocr>=1.7.0,<2.0.0           # Text recognition for laterality extraction
+opencv-python-headless>=4.8.0,<5.0.0  # Image preprocessing (headless = no GUI deps)
+pillow>=10.0.0,<11.0.0          # Image I/O
+numpy>=1.24.0,<2.0.0            # Numerical operations
+
+# ── Backend ──
+fastapi>=0.115.0,<1.0.0         # REST API framework
+uvicorn[standard]>=0.30.0,<1.0.0  # ASGI server
+python-multipart>=0.0.9         # multipart/form-data for file uploads
+pydantic>=2.0.0,<3.0.0          # Request/response schema validation
+
+# ── Monitoring & Utilities ──
+python-dateutil>=2.8.0,<3.0.0   # Timestamp parsing

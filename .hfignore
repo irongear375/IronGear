@@ -1,0 +1,36 @@
+# ============================================================================
+# WristAssist AI — HF Spaces Ignore File
+# Excludes non-deployment files when pushing to HF Spaces
+#
+# HF Spaces only needs: Dockerfile, requirements.txt, models/, utils/, app/
+# ============================================================================
+
+# ── Pipeline scripts (CI/CD + training only) ──
+pipeline/
+
+# ── Tests (CI only) ──
+tests/
+pytest.ini
+requirements-test.txt
+
+# ── GitHub Actions ──
+.github/
+
+# ── Config (used by pipeline, not by the app) ──
+experiment_config.yaml
+
+# ── Git and IDE ──
+.gitattributes
+.gitignore
+*.md
+LICENSE
+
+# ── Python cache ──
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# ── OS files ──
+.DS_Store
+Thumbs.db

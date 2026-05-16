@@ -1,0 +1,127 @@
+# ============================================================================
+# WristAssist AI — CD Workflow
+# SCRUM-51: Continuous Deployment to Hugging Face Spaces
+#
+# Triggers: On successful push to main (deployment-relevant files)
+# Steps: Push full repo to HF Spaces (.hfignore filters out non-deployment files)
+#         → HF auto-rebuilds Docker container → smoke test live endpoints
+# ============================================================================
+
+name: CD — Deploy to Hugging Face Spaces
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "app/**"
+      - "models/**"
+      - "utils/**"
+      - "Dockerfile"
+      - "requirements.txt"
+      - ".hfignore"
+
+concurrency:
+  group: deploy-hf-spaces
+  cancel-in-progress: true
+
+env:
+  HF_SPACE: irongear375/wristassist
+
+jobs:
+  deploy:
+    name: Deploy to HF Spaces
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Checkout source repo
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+          fetch-depth: 0
+
+      - name: Install Git LFS
+        run: |
+          git lfs install
+          git lfs pull
+
+      - name: Push to HF Spaces
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          # Add HF Spaces as a remote
+          git remote add hf https://iron-gear:${HF_TOKEN}@huggingface.co/spaces/${{ env.HF_SPACE }} || true
+
+          # Push full repo — .hfignore excludes .github/, tests/,
+          # tests, .github/, data/, etc. from the Space build context
+          echo "Pushing to HF Spaces (.hfignore filters non-deployment files)..."
+          git push hf main --force
+
+          echo "Push complete. HF Spaces will auto-rebuild."
+
+      - name: Wait for HF Spaces rebuild
+        run: |
+          echo "Waiting for container rebuild (~3-5 minutes)..."
+          sleep 180
+
+          MAX_ATTEMPTS=20
+          DELAY=15
+          ATTEMPT=0
+
+          while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+            ATTEMPT=$((ATTEMPT + 1))
+            echo "Health check attempt $ATTEMPT/$MAX_ATTEMPTS..."
+
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+              "https://irongear375-wristassist.hf.space/health" || echo "000")
+
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "Health check passed (HTTP 200)"
+              break
+            fi
+
+            echo "  Got HTTP $HTTP_CODE — waiting ${DELAY}s..."
+            sleep $DELAY
+          done
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "ERROR: HF Spaces not healthy after $((MAX_ATTEMPTS * DELAY + 180))s"
+            exit 1
+          fi
+
+      - name: Smoke test live deployment
+        run: |
+          echo "Running smoke tests..."
+
+          # /health
+          HEALTH=$(curl -s "https://irongear375-wristassist.hf.space/health")
+          echo "  /health: $HEALTH"
+
+          MODEL_VERSION=$(echo "$HEALTH" | python3 -c \
+            "import sys,json; print(json.load(sys.stdin).get('model_version',''))" 2>/dev/null || echo "")
+
+          if [ -z "$MODEL_VERSION" ]; then
+            echo "ERROR: Could not read model_version from /health"
+            exit 1
+          fi
+          echo "  Model: $MODEL_VERSION"
+
+          # /metrics
+          echo "  /metrics: HTTP $(curl -s -o /dev/null -w '%{http_code}' \
+            https://irongear375-wristassist.hf.space/metrics)"
+
+          # /drift
+          echo "  /drift: HTTP $(curl -s -o /dev/null -w '%{http_code}' \
+            https://irongear375-wristassist.hf.space/drift)"
+
+          echo ""
+          echo "All smoke tests passed. Deployment verified."
+
+      - name: Post deployment summary
+        run: |
+          echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Space:** https://huggingface.co/spaces/${{ env.HF_SPACE }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **App:** https://irongear375-wristassist.hf.space" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Actor:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY

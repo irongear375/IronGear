@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WristAssist AI</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f7fa; color: #1a1a2e; }
+
+        /* ── Header ── */
+        .header { background: linear-gradient(135deg, #1B3A5C, #2E75B6); color: #fff; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; }
+        .header h1 { font-size: 20px; font-weight: 700; }
+        .header .version { font-size: 12px; opacity: 0.7; }
+
+        /* ── Disclaimer ── */
+        .disclaimer { background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; padding: 12px 16px; margin: 16px 24px; font-size: 13px; line-height: 1.5; }
+        .disclaimer strong { color: #856404; }
+
+        /* ── Main layout ── */
+        .container { max-width: 1200px; margin: 0 auto; padding: 16px 24px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+        @media (max-width: 768px) { .container { grid-template-columns: 1fr; } }
+
+        /* ── Cards ── */
+        .card { background: #fff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); padding: 24px; }
+        .card h2 { font-size: 16px; color: #1B3A5C; margin-bottom: 16px; border-bottom: 2px solid #2E75B6; padding-bottom: 8px; }
+
+        /* ── Upload zone ── */
+        .upload-zone { border: 2px dashed #2E75B6; border-radius: 12px; padding: 40px 20px; text-align: center; cursor: pointer; transition: background 0.2s; background: #f8fbff; }
+        .upload-zone:hover, .upload-zone.dragover { background: #e8f0fe; border-color: #1B3A5C; }
+        .upload-zone .icon { font-size: 40px; margin-bottom: 8px; }
+        .upload-zone p { color: #555; font-size: 14px; }
+        .upload-zone input { display: none; }
+
+        /* ── Confidence slider ── */
+        .slider-group { margin-top: 16px; }
+        .slider-group label { font-size: 13px; color: #555; }
+        .slider-group input[type="range"] { width: 100%; margin-top: 4px; }
+        .slider-group .value { font-weight: 700; color: #2E75B6; }
+
+        /* ── Capabilities ── */
+        .capabilities { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+        .cap-tag { background: #e8f0fe; color: #1B3A5C; padding: 4px 10px; border-radius: 16px; font-size: 12px; font-weight: 500; }
+        .cap-tag.primary { background: #c62828; color: #fff; }
+
+        /* ── Analyse button ── */
+        .analyse-btn { width: 100%; padding: 14px; background: linear-gradient(135deg, #1B3A5C, #2E75B6); color: #fff; border: none; border-radius: 8px; font-size: 16px; font-weight: 700; cursor: pointer; margin-top: 20px; transition: opacity 0.2s; }
+        .analyse-btn:hover { opacity: 0.9; }
+        .analyse-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* ── Results panel ── */
+        .results-panel { display: none; }
+        .results-panel.active { display: block; }
+        .result-image { width: 100%; border-radius: 8px; border: 1px solid #ddd; }
+
+        /* ── Summary flags ── */
+        .flags { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
+        .flag { padding: 8px 12px; border-radius: 8px; font-size: 12px; text-align: center; font-weight: 600; }
+        .flag.positive { background: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }
+        .flag.negative { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
+        .flag.warning { background: #fff8e1; color: #f57f17; border: 1px solid #ffe082; }
+        .flag.info { background: #e3f2fd; color: #1565c0; border: 1px solid #90caf9; }
+
+        /* ── Detections table ── */
+        .det-table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 13px; }
+        .det-table th { background: #1B3A5C; color: #fff; padding: 8px 12px; text-align: left; }
+        .det-table td { padding: 8px 12px; border-bottom: 1px solid #eee; }
+        .det-table tr:hover { background: #f8fbff; cursor: pointer; }
+
+        /* ── Feedback ── */
+        .feedback-group { display: flex; gap: 12px; margin-top: 16px; }
+        .fb-btn { flex: 1; padding: 10px; border: 2px solid; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 13px; background: #fff; }
+        .fb-btn.correct { border-color: #4caf50; color: #2e7d32; }
+        .fb-btn.incorrect { border-color: #f44336; color: #c62828; }
+        .fb-btn:hover { opacity: 0.8; }
+
+        /* ── Download buttons ── */
+        .download-group { display: flex; gap: 8px; margin-top: 8px; }
+        .dl-btn { padding: 6px 14px; border: 1px solid #2E75B6; color: #2E75B6; background: #fff; border-radius: 6px; font-size: 12px; cursor: pointer; text-decoration: none; }
+        .dl-btn:hover { background: #e8f0fe; }
+
+        /* ── Footer ── */
+        .footer { text-align: center; padding: 16px; font-size: 11px; color: #999; margin-top: 24px; }
+
+        /* ── Loading spinner ── */
+        .spinner { display: none; text-align: center; padding: 40px; }
+        .spinner.active { display: block; }
+        .spinner .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #2E75B6; margin: 0 4px; animation: bounce 0.6s infinite alternate; }
+        .spinner .dot:nth-child(2) { animation-delay: 0.2s; }
+        .spinner .dot:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes bounce { to { transform: translateY(-12px); opacity: 0.3; } }
+
+        /* ── Status bar ── */
+        .status-bar { font-size: 11px; color: #888; margin-top: 8px; text-align: center; }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <div>
+            <h1>&#x1F9FB; WristAssist AI</h1>
+        </div>
+        <div class="version" id="versionLabel">v2.0</div>
+    </div>
+
+    <!-- Disclaimer -->
+    <div class="disclaimer">
+        <strong>&#x26A0; Clinical Disclaimer</strong> &mdash; Decision support only. Not a diagnostic tool. Clinicians retain final responsibility. Education/research use only. De-identified images only.
+    </div>
+
+    <div class="container">
+        <!-- Left panel: Upload -->
+        <div class="card" id="uploadPanel">
+            <h2>&#x1F4C1; Upload X-ray</h2>
+            <div class="upload-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+                <div class="icon">&#x1F4E4;</div>
+                <p><strong>Drop X-ray image here or click to browse</strong></p>
+                <p>PNG or JPG &middot; max 10 MB</p>
+                <input type="file" id="fileInput" accept="image/png,image/jpeg,.png,.jpg,.jpeg">
+            </div>
+            <div id="preview" style="display:none; margin-top:12px; text-align:center;">
+                <img id="previewImg" style="max-height:200px; border-radius:8px; border:1px solid #ddd;">
+                <p id="fileName" style="font-size:12px; color:#555; margin-top:4px;"></p>
+            </div>
+
+            <div class="slider-group">
+                <label>&#x2699; Confidence threshold: <span class="value" id="confValue">0.42</span></label>
+                <input type="range" id="confSlider" min="0" max="1" step="0.01" value="0.42">
+                <div style="font-size:11px; color:#888;">Calibrated from Sprint 2 F1 curve</div>
+            </div>
+
+            <div>
+                <h2 style="font-size:14px; margin-top:16px; border:none; padding:0;">&#x1F50D; What we detect</h2>
+                <div class="capabilities">
+                    <span class="cap-tag primary">Fracture (91.6% recall)</span>
+                    <span class="cap-tag">Periosteal reaction</span>
+                    <span class="cap-tag">Metal implant</span>
+                    <span class="cap-tag">Pronator sign</span>
+                    <span class="cap-tag">Laterality (L/R via OCR)</span>
+                </div>
+            </div>
+
+            <button class="analyse-btn" id="analyseBtn" disabled onclick="runAnalysis()">
+                &#x1F50D; Analyse X-ray (select image first)
+            </button>
+        </div>
+
+        <!-- Right panel: Results -->
+        <div class="card">
+            <div class="spinner" id="spinner">
+                <p style="margin-bottom:16px; color:#555;">Analysing X-ray...</p>
+                <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+            </div>
+
+            <div class="results-panel" id="resultsPanel">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <h2>&#x1F4CB; Results <span id="lateralityBadge" class="flag info" style="margin-left:8px; display:inline-block;"></span></h2>
+                    <div class="download-group">
+                        <a class="dl-btn" id="dlJson" href="#" download="wristassist_report.json">&#x2B07; JSON</a>
+                        <a class="dl-btn" id="dlImage" href="#" download="wristassist_annotated.png">&#x2B07; Image</a>
+                    </div>
+                </div>
+
+                <img id="resultImage" class="result-image" alt="Annotated X-ray overlay">
+
+                <div id="flagsGrid" class="flags"></div>
+
+                <h2 style="margin-top:16px; font-size:14px;">Detections (sorted by confidence)</h2>
+                <table class="det-table">
+                    <thead><tr><th>Class</th><th>Confidence</th><th>Box [x1,y1,x2,y2]</th></tr></thead>
+                    <tbody id="detBody"></tbody>
+                </table>
+
+                <!-- Feedback -->
+                <h2 style="margin-top:16px; font-size:14px;">Clinician Feedback</h2>
+                <div class="feedback-group">
+                    <button class="fb-btn correct" onclick="sendFeedback(true)">&#x2705; Mark correct</button>
+                    <button class="fb-btn incorrect" onclick="sendFeedback(false)">&#x274C; Mark incorrect</button>
+                </div>
+                <input type="text" id="fbComment" placeholder="Optional comment" style="width:100%; padding:8px; margin-top:8px; border:1px solid #ddd; border-radius:6px; font-size:13px;">
+
+                <div class="status-bar" id="statusBar"></div>
+            </div>
+
+            <!-- Empty state -->
+            <div id="emptyState" style="text-align:center; padding:60px 20px; color:#aaa;">
+                <div style="font-size:48px; margin-bottom:12px;">&#x1F9FB;</div>
+                <p>Upload an X-ray to see results</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        WristAssist AI &middot; Iron Gear &middot; 42174 AI Studio Autumn 2026 &middot; Decision support only
+    </div>
+
+    <script>
+        let currentReport = null;
+
+        // ── File handling ──
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const analyseBtn = document.getElementById('analyseBtn');
+        const confSlider = document.getElementById('confSlider');
+        const confValue = document.getElementById('confValue');
+
+        confSlider.oninput = () => { confValue.textContent = parseFloat(confSlider.value).toFixed(2); };
+
+        fileInput.onchange = (e) => {
+            if (e.target.files.length > 0) handleFile(e.target.files[0]);
+        };
+
+        ['dragover', 'dragenter'].forEach(ev => {
+            dropZone.addEventListener(ev, (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+        });
+        ['dragleave', 'drop'].forEach(ev => {
+            dropZone.addEventListener(ev, (e) => { e.preventDefault(); dropZone.classList.remove('dragover'); });
+        });
+        dropZone.addEventListener('drop', (e) => {
+            if (e.dataTransfer.files.length > 0) handleFile(e.dataTransfer.files[0]);
+        });
+
+        function handleFile(file) {
+            if (!file.type.match(/^image\/(png|jpeg|jpg)$/)) {
+                alert('Please select a PNG or JPG image.');
+                return;
+            }
+            if (file.size > 10 * 1024 * 1024) {
+                alert('File too large. Maximum is 10 MB.');
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                document.getElementById('previewImg').src = e.target.result;
+                document.getElementById('fileName').textContent = file.name + ' (' + (file.size / 1024).toFixed(0) + ' KB)';
+                document.getElementById('preview').style.display = 'block';
+                analyseBtn.disabled = false;
+                analyseBtn.textContent = '\uD83D\uDD0D Analyse X-ray';
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // ── Analysis ──
+        async function runAnalysis() {
+            const file = fileInput.files[0];
+            if (!file) return;
+
+            document.getElementById('emptyState').style.display = 'none';
+            document.getElementById('resultsPanel').classList.remove('active');
+            document.getElementById('spinner').classList.add('active');
+            analyseBtn.disabled = true;
+            analyseBtn.textContent = 'Analysing...';
+
+            const formData = new FormData();
+            formData.append('image', file);
+            formData.append('conf_threshold', confSlider.value);
+
+            try {
+                const res = await fetch('/predict', { method: 'POST', body: formData });
+                if (!res.ok) {
+                    const err = await res.json();
+                    throw new Error(err.detail || `HTTP ${res.status}`);
+                }
+                const data = await res.json();
+                currentReport = data;
+                displayResults(data);
+            } catch (err) {
+                alert('Analysis failed: ' + err.message);
+            } finally {
+                document.getElementById('spinner').classList.remove('active');
+                analyseBtn.disabled = false;
+                analyseBtn.textContent = '\uD83D\uDD0D Analyse X-ray';
+            }
+        }
+
+        // ── Display results ──
+        function displayResults(data) {
+            // Annotated image
+            document.getElementById('resultImage').src = 'data:image/png;base64,' + data.annotated_image;
+
+            // Laterality badge
+            const badge = document.getElementById('lateralityBadge');
+            badge.textContent = data.laterality + ' wrist';
+            badge.className = 'flag info';
+
+            // Summary flags
+            const flagsGrid = document.getElementById('flagsGrid');
+            flagsGrid.innerHTML = '';
+            const s = data.summary;
+            const flags = [
+                { label: s.fracture_suspected ? 'Fracture suspected' : 'No fracture', positive: s.fracture_suspected },
+                { label: s.implant_present ? 'Implant present' : 'No implant', positive: s.implant_present },
+                { label: s.periosteal_reaction_present ? 'Periosteal present' : 'No periosteal', positive: s.periosteal_reaction_present },
+                { label: s.pronator_sign_present ? 'Pronator sign' : 'No pronator sign', positive: s.pronator_sign_present },
+                { label: s.needs_human_review ? 'Needs human review' : 'Review not flagged', warning: s.needs_human_review },
+                { label: data.laterality + ' wrist', info: true },
+            ];
+            flags.forEach(f => {
+                const div = document.createElement('div');
+                div.className = 'flag ' + (f.warning ? 'warning' : f.info ? 'info' : f.positive ? 'positive' : 'negative');
+                div.textContent = f.label;
+                flagsGrid.appendChild(div);
+            });
+
+            // Detections table
+            const tbody = document.getElementById('detBody');
+            tbody.innerHTML = '';
+            const sorted = [...data.findings_detected].sort((a, b) => b.confidence - a.confidence);
+            // Also add text detections
+            const textDets = (data.findings_detected || []).length < (data.findings_detected || []).length ? [] :
+                data.findings_detected.filter(() => false); // text is in all detections already via findings_detected
+            // Actually, findings_detected excludes text. Let's show all from the raw response.
+            // We need to reconstruct. For now, show findings + note laterality.
+            sorted.forEach(det => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td style="color:${det.class_name === 'fracture' ? '#c62828' : '#333'}">${det.class_name}</td>
+                    <td><strong>${det.confidence.toFixed(2)}</strong></td>
+                    <td>[${det.box.map(b => Math.round(b)).join(', ')}]</td>`;
+                tbody.appendChild(tr);
+            });
+
+            // Download links
+            const jsonBlob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            document.getElementById('dlJson').href = URL.createObjectURL(jsonBlob);
+
+            // Decode base64 image for download
+            const byteChars = atob(data.annotated_image);
+            const byteArr = new Uint8Array(byteChars.length);
+            for (let i = 0; i < byteChars.length; i++) byteArr[i] = byteChars.charCodeAt(i);
+            const imgBlob = new Blob([byteArr], { type: 'image/png' });
+            document.getElementById('dlImage').href = URL.createObjectURL(imgBlob);
+
+            // Status bar
+            document.getElementById('statusBar').textContent =
+                `request_id: ${data.request_id.substring(0, 8)}... \u00B7 model: ${data.model_version} \u00B7 latency: ${data.latency_ms.toFixed(0)} ms \u00B7 conf: ${data.confidence_threshold_used}`;
+
+            // Show results panel
+            document.getElementById('resultsPanel').classList.add('active');
+
+            // Update version label
+            document.getElementById('versionLabel').textContent = 'v2.0 \u00B7 ' + data.model_version;
+        }
+
+        // ── Feedback ──
+        async function sendFeedback(correct) {
+            if (!currentReport) return;
+            const comment = document.getElementById('fbComment').value;
+            try {
+                const res = await fetch('/feedback', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        request_id: currentReport.request_id,
+                        correct: correct,
+                        comment: comment
+                    })
+                });
+                if (res.ok) {
+                    document.getElementById('statusBar').textContent += ' \u00B7 Feedback recorded \u2705';
+                    document.getElementById('fbComment').value = '';
+                }
+            } catch (err) {
+                console.error('Feedback failed:', err);
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,3 @@
+# Test dependencies for Sprint 3 CI
+pytest>=7.0
+httpx>=0.24.0
