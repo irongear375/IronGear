@@ -1,0 +1,180 @@
+{
+  "model_name": "WristAssist AI — Paediatric Wrist Trauma Detector",
+  "model_version": "sprint2_yolo11l_expB_v1",
+  "framework": "PyTorch (Ultralytics YOLO11)",
+  "architecture": "YOLO11l",
+  "parameters": "25M",
+  "file_size_mb": 48,
+  "created_date": "2026-04-26",
+  "last_updated": "2026-05-17",
+  "team": "Iron Gear",
+  "project": "IronGear/WristAssist",
+
+  "intended_use": {
+    "primary_use": "Clinical decision support for paediatric wrist trauma X-ray analysis",
+    "target_users": "ED clinicians, radiology registrars, and medical staff performing triage",
+    "deployment": "Web application on Hugging Face Spaces (CPU inference)",
+    "limitations": [
+      "Decision support only — not a diagnostic tool. Clinicians retain final responsibility.",
+      "Trained on GRAZPEDWRI-DX dataset only — may not generalise to other institutions or imaging protocols.",
+      "Rare findings (pronator_sign, periosteal_reaction) have fewer training samples and lower precision.",
+      "CPU-only inference on free tier — first prediction after cold start takes ~52s due to EasyOCR warm-up.",
+      "Does not support DICOM input, only PNG/JPG.",
+      "Not validated for regulatory compliance (TGA/FDA/CE)."
+    ]
+  },
+
+  "dataset": {
+    "name": "GRAZPEDWRI-DX",
+    "source": "Medical University of Graz",
+    "citation": "Nagy et al. (2022). A pediatric wrist trauma X-ray dataset (GRAZPEDWRI-DX) for machine learning. Scientific Data, 9(1).",
+    "total_images": 20327,
+    "total_patients": 6091,
+    "split_strategy": "Patient-level 70/15/15 (train/val/test) to prevent data leakage",
+    "split_counts": {
+      "train_base": 14229,
+      "train_oversampled": 35734,
+      "val": 2969,
+      "test": 3115
+    }
+  },
+
+  "class_schema": {
+    "num_classes": 5,
+    "classes": {
+      "0": "fracture",
+      "1": "metal_implant",
+      "2": "periosteal_reaction",
+      "3": "pronator_sign",
+      "4": "text"
+    },
+    "dropped_classes": [
+      "boneanomaly (raw ID 1) — insufficient samples",
+      "bonelesion (raw ID 2) — insufficient samples",
+      "foreignbody (raw ID 3) — insufficient samples",
+      "softtissue (raw ID 7) — poor AP@0.5 = 0.307 in Sprint 1"
+    ],
+    "notes": "Schema locked from Sprint 2 onward. Text class (23,722 boxes) used for laterality extraction via EasyOCR."
+  },
+
+  "training": {
+    "experiment": "B",
+    "description": "Base resolution + heavy augmentation",
+    "platform": "Kaggle 2×T4 GPUs (30 GB VRAM, DDP)",
+    "hyperparameters": {
+      "model": "yolo11l.pt",
+      "imgsz": 640,
+      "batch": 16,
+      "epochs_trained": 35,
+      "patience": 15,
+      "lr0": 0.01,
+      "lrf": 0.01,
+      "optimizer": "auto",
+      "warmup_epochs": 3,
+      "mixup": 0.15,
+      "copy_paste": 0.3,
+      "cls": 1.5,
+      "mosaic": 1.0,
+      "fliplr": 0.5
+    },
+    "oversampling": {
+      "metal_implant": 5,
+      "periosteal_reaction": 2,
+      "pronator_sign": 5
+    },
+    "selection_rationale": "Highest peak mAP@0.5 (0.858), highest mAP@0.5:0.95 (0.560), won 4/5 per-class recall metrics, 1.3x faster training than Exp A (imgsz=1280), 2.5x faster than Exp C."
+  },
+
+  "evaluation": {
+    "split": "test",
+    "num_images": 3115,
+    "num_instances": 7107,
+    "confidence_threshold": 0.42,
+    "overall_metrics": {
+      "mAP50": 0.842,
+      "mAP50_95": 0.551,
+      "precision": 0.811,
+      "recall": 0.837
+    },
+    "per_class_metrics": {
+      "fracture": {
+        "images": 2082,
+        "instances": 2752,
+        "precision": 0.934,
+        "recall": 0.866,
+        "AP50": 0.941,
+        "AP50_95": 0.551
+      },
+      "metal_implant": {
+        "images": 126,
+        "instances": 142,
+        "precision": 0.920,
+        "recall": 0.892,
+        "AP50": 0.906,
+        "AP50_95": 0.776
+      },
+      "periosteal_reaction": {
+        "images": 348,
+        "instances": 518,
+        "precision": 0.714,
+        "recall": 0.641,
+        "AP50": 0.695,
+        "AP50_95": 0.337
+      },
+      "pronator_sign": {
+        "images": 97,
+        "instances": 97,
+        "precision": 0.517,
+        "recall": 0.805,
+        "AP50": 0.678,
+        "AP50_95": 0.368
+      },
+      "text": {
+        "images": 3099,
+        "instances": 3598,
+        "precision": 0.971,
+        "recall": 0.982,
+        "AP50": 0.991,
+        "AP50_95": 0.722
+      }
+    }
+  },
+
+  "approval_gate": {
+    "passed": true,
+    "criteria": {
+      "mAP50_min": 0.685,
+      "fracture_AP50_min": 0.90
+    },
+    "results": {
+      "mAP50": 0.842,
+      "fracture_AP50": 0.941
+    }
+  },
+
+  "lineage": {
+    "sprint": 2,
+    "experiment_name": "Experiment B",
+    "clearml_project": "IronGear/WristAssist",
+    "clearml_tags": ["production", "sprint2_expB", "yolo11l", "gate-passed"],
+    "baseline_model": "Sprint 1 POC (YOLO11x, mAP@0.5 = 0.685)",
+    "improvement_over_baseline": "+23% mAP@0.5 (0.685 → 0.842)",
+    "git_repository": "https://github.com/irongear375/IronGear",
+    "git_lfs_path": "models/best.pt"
+  },
+
+  "drift_baseline": {
+    "description": "Class prediction rates from Sprint 2 Experiment B evaluation on 3,115 test images",
+    "class_rates": {
+      "fracture": 0.6685,
+      "metal_implant": 0.0405,
+      "periosteal_reaction": 0.1117,
+      "pronator_sign": 0.0311,
+      "text": 0.9949
+    },
+    "psi_thresholds": {
+      "warning": 0.10,
+      "alert": 0.25
+    }
+  }
+}

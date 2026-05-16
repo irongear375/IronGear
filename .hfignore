@@ -5,8 +5,9 @@
 # HF Spaces only needs: Dockerfile, requirements.txt, models/, utils/, app/
 # ============================================================================
 
-# ── Pipeline scripts (CI/CD + training only) ──
+# ── Pipeline and utility scripts (CI/CD + training only) ──
 pipeline/
+scripts/
 
 # ── Tests (CI only) ──
 tests/
