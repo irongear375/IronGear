@@ -1,11 +1,11 @@
 """
-WristAssist AI — Model Registry CLI
+WristAssist AI -- Model Registry CLI
 SCRUM-56: Model registration, promotion, and listing via ClearML.
 
 Provides three commands:
-    register  — Register a local best.pt in ClearML with metadata and tags
-    promote   — Promote a registered model to production (demotes current)
-    list      — List all registered models with tags and metrics
+    register  -- Register a local best.pt in ClearML with metadata and tags
+    promote   -- Promote a registered model to production (demotes current)
+    list      -- List all registered models with tags and metrics
 
 Usage:
     # Register a new model
@@ -101,7 +101,7 @@ def cmd_register(args):
     # Create a ClearML task for the registration
     task = Task.init(
         project_name=project,
-        task_name=f"Model Registration — {args.version}",
+        task_name=f"Model Registration -- {args.version}",
         task_type=Task.TaskTypes.custom,
     )
     task.add_tags(["model_registration", args.version])
@@ -214,7 +214,7 @@ def cmd_promote(args):
     logger.info("Next steps:")
     logger.info("  1. Copy the model weights to models/best.pt")
     logger.info("  2. Update production.model_version in experiment_config.yaml")
-    logger.info("  3. Push to main — CD will deploy automatically")
+    logger.info("  3. Push to main -- CD will deploy automatically")
 
 
 # ============================================================================
@@ -261,7 +261,7 @@ def cmd_list(args):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="WristAssist AI — Model Registry CLI (SCRUM-56)",
+        description="WristAssist AI -- Model Registry CLI (SCRUM-56)",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
