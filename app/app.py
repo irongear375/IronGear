@@ -128,22 +128,24 @@ def extract_laterality(img: np.ndarray, text_boxes: list) -> dict:
     Given detected text bounding boxes, crop each region and run EasyOCR
     to extract wrist laterality (Left / Right / Unknown).
 
-    Uses aggressive preprocessing because X-ray lead markers are typically
-    white text on dark background with thin strokes.
+    OPTIMISED for CPU: Max 3 EasyOCR calls total (was 16 in Sprint 2).
+    On CPU-only HF Spaces, each call takes 5-15s, so fewer = faster.
+    Sprint 2 used 8 variants x 2 calls = 16 calls, causing 180s latency.
     """
-    
     laterality = "Unknown"
     raw_texts = []
 
-    for box in text_boxes:
+    # Only process the highest-confidence text box (first in list)
+    # Multiple boxes rarely help and multiply latency
+    for box in text_boxes[:1]:
         x1, y1, x2, y2 = [int(c) for c in box]
         h, w = img.shape[:2]
 
-        # Add 100% padding around the box for generous OCR context
+        # Add 50% padding (reduced from 100% -- less noise, faster OCR)
         box_w = x2 - x1
         box_h = y2 - y1
-        pad_x = int(box_w * 1.0)
-        pad_y = int(box_h * 1.0)
+        pad_x = int(box_w * 0.5)
+        pad_y = int(box_h * 0.5)
         x1 = max(0, x1 - pad_x)
         y1 = max(0, y1 - pad_y)
         x2 = min(w, x2 + pad_x)
@@ -154,105 +156,58 @@ def extract_laterality(img: np.ndarray, text_boxes: list) -> dict:
 
         crop = img[y1:y2, x1:x2]
 
-        # Upscale aggressively — target 256px minimum height
+        # Upscale to 128px min height (reduced from 256 -- faster OCR)
         crop_h, crop_w = crop.shape[:2]
-        if crop_h < 256:
-            scale = 256.0 / crop_h
+        if crop_h < 128:
+            scale = 128.0 / crop_h
             crop = cv2.resize(crop, None, fx=scale, fy=scale,
                              interpolation=cv2.INTER_CUBIC)
 
-        # Build preprocessing variants
+        # Only 2 preprocessing variants (was 8)
         gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
-
-        # CLAHE contrast enhancement
         clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
         enhanced = clahe.apply(gray)
-
-        # Invert: white-on-dark → dark-on-light
         inverted = cv2.bitwise_not(enhanced)
-
-        # Otsu binarisation on inverted
         _, binary = cv2.threshold(inverted, 0, 255,
                                   cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-
-        # Dilate to thicken thin strokes
         kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
-        dilated = cv2.dilate(binary, kernel, iterations=1)
+        dilated = cv2.dilate(binary, kernel, iterations=2)
 
-        # Extra dilated for very thin markers
-        dilated_heavy = cv2.dilate(binary, kernel, iterations=2)
-
-        # Sharpen the inverted image
-        sharpen_kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
-        sharpened = cv2.filter2D(inverted, -1, sharpen_kernel)
-
-        # Adaptive threshold (handles uneven lighting in marker region)
-        adaptive = cv2.adaptiveThreshold(
-            cv2.bitwise_not(gray), 255,
-            cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-            cv2.THRESH_BINARY, 21, 10
-        )
-
-        # Try each variant — stop on first L/R match
         variants = [
-            ("dilated_heavy", cv2.cvtColor(dilated_heavy, cv2.COLOR_GRAY2BGR)),
-            ("dilated",       cv2.cvtColor(dilated, cv2.COLOR_GRAY2BGR)),
-            ("sharpened",     cv2.cvtColor(sharpened, cv2.COLOR_GRAY2BGR)),
-            ("inverted",      cv2.cvtColor(inverted, cv2.COLOR_GRAY2BGR)),
-            ("binary",        cv2.cvtColor(binary, cv2.COLOR_GRAY2BGR)),
-            ("adaptive",      cv2.cvtColor(adaptive, cv2.COLOR_GRAY2BGR)),
-            ("clahe",         cv2.cvtColor(enhanced, cv2.COLOR_GRAY2BGR)),
-            ("raw",           crop),
+            ("dilated", cv2.cvtColor(dilated, cv2.COLOR_GRAY2BGR)),
+            ("inverted", cv2.cvtColor(inverted, cv2.COLOR_GRAY2BGR)),
+            ("raw", crop),
         ]
+
+        def _check_laterality(text):
+            """Check if text contains a laterality marker."""
+            t = text.strip().upper()
+            if t in ("L", "LEFT", "LT"):
+                return "Left"
+            elif t in ("R", "RIGHT", "RT"):
+                return "Right"
+            return None
 
         found = False
         for name, variant in variants:
             if found:
                 break
             try:
-                # Attempt 1: no allowlist, lower thresholds, internal magnification
+                # Single OCR call per variant (was 2)
                 results = ocr_reader.readtext(
                     variant, detail=0,
                     text_threshold=0.3,
                     low_text=0.3,
-                    mag_ratio=2.0,
+                    mag_ratio=1.5,
                 )
-
                 for text in results:
                     raw_texts.append(text)
-                    text_upper = text.strip().upper()
-                    # Check for L or R anywhere in detected text
-                    if laterality == "Unknown":
-                        if text_upper in ("L", "LEFT", "LT"):
-                            laterality = "Left"
-                            found = True
-                            logger.info(f"Laterality '{text}' via {name} (open)")
-                        elif text_upper in ("R", "RIGHT", "RT"):
-                            laterality = "Right"
-                            found = True
-                            logger.info(f"Laterality '{text}' via {name} (open)")
-
-                if not found:
-                    # Attempt 2: restricted allowlist
-                    results2 = ocr_reader.readtext(
-                        variant, detail=0,
-                        allowlist='LRlr',
-                        text_threshold=0.2,
-                        low_text=0.2,
-                        mag_ratio=2.0,
-                    )
-                    for text in results2:
-                        raw_texts.append(text)
-                        text_upper = text.strip().upper()
-                        if "L" in text_upper and laterality == "Unknown":
-                            laterality = "Left"
-                            found = True
-                            logger.info(f"Laterality '{text}' via {name} (allow)")
-                        elif "R" in text_upper and laterality == "Unknown":
-                            laterality = "Right"
-                            found = True
-                            logger.info(f"Laterality '{text}' via {name} (allow)")
-
+                    match = _check_laterality(text)
+                    if match and laterality == "Unknown":
+                        laterality = match
+                        found = True
+                        logger.info(f"Laterality '{text}' via {name}")
+                        break
             except Exception as e:
                 logger.warning(f"EasyOCR failed on {name}: {e}")
 
@@ -384,6 +339,13 @@ async def lifespan(application: FastAPI):
     import easyocr
     ocr_reader = easyocr.Reader(["en"], gpu=False, download_enabled=False)
     logger.info("EasyOCR reader ready")
+
+    # Warm up both models to avoid slow first prediction
+    logger.info("Warming up models (this takes ~30s on CPU)...")
+    dummy = np.zeros((640, 640, 3), dtype=np.uint8)
+    _ = yolo_model(dummy, verbose=False)
+    _ = ocr_reader.readtext(dummy)
+    logger.info("Models warmed up -- first prediction will be fast")
 
     yield  # Application runs here
 
