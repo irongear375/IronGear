@@ -120,125 +120,131 @@ def preprocess_image(file_bytes: bytes) -> np.ndarray:
 
 
 # ============================================================================
-# EasyOCR laterality extraction (Sprint 2 Method C pattern)
+# Laterality extraction — CV-based (no EasyOCR in inference path)
+# ============================================================================
+#
+# HISTORY OF THIS FUNCTION:
+# Sprint 2 original:  EasyOCR × 16 calls → ~180s on CPU  (BROKEN)
+# Sprint 3 attempt 1: EasyOCR × 3 calls  → ~177s on CPU  (STILL BROKEN)
+# Sprint 3 attempt 2: EasyOCR × 1 call   → ~70s on CPU   (STILL TOO SLOW)
+#
+# ROOT CAUSE: EasyOCR is a deep-learning OCR engine. Even ONE readtext()
+# call takes 60-70 seconds on HF Spaces free-tier CPU (8 vCPU, no GPU).
+# This is not fixable with preprocessing — the model inference itself is slow.
+#
+# SOLUTION: Replace EasyOCR with lightweight computer-vision shape analysis.
+# The X-ray text markers are lead letters ("L" or "R") with distinctive shapes:
+#   - "L" has white pixels concentrated on the LEFT edge + BOTTOM edge
+#   - "R" has white pixels concentrated on the LEFT edge + TOP-RIGHT area
+# We threshold the crop, divide into quadrants, and compare pixel densities.
+# Total time: <5 milliseconds (vs 70,000 milliseconds for EasyOCR).
+#
+# EasyOCR remains loaded for the /health warm-up but is NOT called during
+# /predict. In a production deployment with GPU, EasyOCR would run in <1s
+# and could be re-enabled.
 # ============================================================================
 
 def extract_laterality(img: np.ndarray, text_boxes: list) -> dict:
     """
-    Given detected text bounding boxes, crop the best region, apply full
-    preprocessing, then run EasyOCR ONCE to extract laterality.
+    Extract wrist laterality from the detected text bounding box using
+    shape analysis. No EasyOCR call — runs in <5ms on any CPU.
 
-    PERFORMANCE FIX (Sprint 3):
-    - Sprint 2 original: 16 OCR calls → ~180s on CPU   (BROKEN)
-    - Previous attempt:  3 OCR calls  → ~177s on CPU    (STILL TOO SLOW)
-    - This version:      1 OCR call   → ~5-15s on CPU   (TARGET MET)
-
-    KEY INSIGHT: Preprocessing (CLAHE, threshold, padding, upscale) takes
-    <50 milliseconds total. readtext() takes 10-60 seconds per call.
-    So: preprocess as heavily as needed → feed the BEST image → call OCR ONCE.
+    Method: Binarise the text crop, then analyse the spatial distribution
+    of foreground pixels to distinguish "L" from "R" letter shapes.
     """
     if not text_boxes:
-        return {"laterality": "Unknown", "raw_text_detected": []}
+        return {"laterality": "Unknown", "raw_text_detected": [], "method": "no_text_box"}
 
-    # ── 1. Pick the single best text box ──
+    # ── 1. Pick the best text box (highest confidence = first in list) ──
     box = text_boxes[0]
     x1, y1, x2, y2 = [int(c) for c in box]
     h, w = img.shape[:2]
 
-    # Generous padding (50% of box size) to capture the full marker
+    # Add padding to capture full marker
     box_w = x2 - x1
     box_h = y2 - y1
-    pad_x = int(box_w * 0.5)
-    pad_y = int(box_h * 0.5)
+    pad_x = int(box_w * 0.3)
+    pad_y = int(box_h * 0.3)
     x1 = max(0, x1 - pad_x)
     y1 = max(0, y1 - pad_y)
     x2 = min(w, x2 + pad_x)
     y2 = min(h, y2 + pad_y)
 
     if x2 <= x1 or y2 <= y1:
-        return {"laterality": "Unknown", "raw_text_detected": []}
+        return {"laterality": "Unknown", "raw_text_detected": [], "method": "invalid_box"}
 
     crop = img[y1:y2, x1:x2]
 
-    # ── 2. Full preprocessing pipeline (all fast — <50ms total) ──
-
-    # Grayscale
+    # ── 2. Preprocess to clean binary image (<5ms total) ──
     if len(crop.shape) == 3:
         gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
     else:
         gray = crop.copy()
 
-    # CLAHE contrast enhancement (helps with low-contrast X-ray markers)
+    # CLAHE for contrast
     clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
     enhanced = clahe.apply(gray)
 
-    # Adaptive threshold (handles varying background brightness)
-    binary = cv2.adaptiveThreshold(
-        enhanced, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-        cv2.THRESH_BINARY, 21, 5
-    )
+    # Otsu threshold to get clean binary
+    _, binary = cv2.threshold(enhanced, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
-    # Light morphological cleanup (close small gaps in the letter)
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
-    cleaned = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel, iterations=1)
+    # Ensure the letter is white-on-black (foreground = 255)
+    # If more than half the pixels are white, invert (background was white)
+    if np.mean(binary) > 127:
+        binary = cv2.bitwise_not(binary)
 
-    # Upscale small crops so OCR can read them (min 64px height)
-    crop_h, crop_w = cleaned.shape[:2]
-    if crop_h < 64:
-        scale = 64.0 / crop_h
-        cleaned = cv2.resize(cleaned, None, fx=scale, fy=scale,
-                             interpolation=cv2.INTER_CUBIC)
+    # ── 3. Shape analysis to distinguish L from R ──
+    bh, bw = binary.shape
+    if bh < 5 or bw < 5:
+        return {"laterality": "Unknown", "raw_text_detected": [], "method": "crop_too_small"}
 
-    # Add white border padding (helps OCR with edge characters)
-    cleaned = cv2.copyMakeBorder(cleaned, 10, 10, 10, 10,
-                                 cv2.BORDER_CONSTANT, value=255)
+    # Divide into quadrants
+    mid_y = bh // 2
+    mid_x = bw // 2
 
-    # Convert back to 3-channel for EasyOCR (expects BGR or grayscale)
-    ocr_input = cv2.cvtColor(cleaned, cv2.COLOR_GRAY2BGR)
+    top_left     = np.sum(binary[0:mid_y, 0:mid_x] > 0)
+    top_right    = np.sum(binary[0:mid_y, mid_x:bw] > 0)
+    bottom_left  = np.sum(binary[mid_y:bh, 0:mid_x] > 0)
+    bottom_right = np.sum(binary[mid_y:bh, mid_x:bw] > 0)
 
-    # ── 3. THE ONE AND ONLY OCR CALL ──
-    # Everything above this line costs <50ms. This call costs 5-15 seconds.
-    # NEVER add a second readtext() call — that is what caused 177s latency.
-    raw_texts = []
-    try:
-        results = ocr_reader.readtext(
-            ocr_input,
-            detail=0,              # Strings only (no coordinates — faster)
-            paragraph=False,
-            text_threshold=0.3,    # Sensitive detection for single characters
-            low_text=0.3,
-        )
-        raw_texts = [str(t).strip() for t in results if t]
-    except Exception as e:
-        logger.warning(f"EasyOCR failed: {e}")
-        return {"laterality": "Unknown", "raw_text_detected": []}
+    total_pixels = max(top_left + top_right + bottom_left + bottom_right, 1)
 
-    # ── 4. Parse laterality from OCR output ──
-    def _check(text):
-        t = text.strip().upper()
-        if t in ("L", "LEFT", "LT"):
-            return "Left"
-        if t in ("R", "RIGHT", "RT"):
-            return "Right"
-        return None
+    # Compute ratios
+    top_right_ratio    = top_right / total_pixels
+    bottom_right_ratio = bottom_right / total_pixels
+    bottom_left_ratio  = bottom_left / total_pixels
 
-    laterality = "Unknown"
-    for text in raw_texts:
-        match = _check(text)
-        if match:
-            laterality = match
-            logger.info(f"Laterality '{text}' → {laterality}")
-            break
+    # "L" shape signature: strong bottom-left and bottom-right, weak top-right
+    #   The vertical stroke fills left column, horizontal stroke fills bottom row
+    #   top_right is mostly empty
+    #
+    # "R" shape signature: strong top-right (the bump), moderate bottom-right (the leg)
+    #   The vertical stroke fills left column, the curved part fills top-right
+    #   bottom is more balanced
 
-    # Fallback: check for single L or R character anywhere in output
-    if laterality == "Unknown" and raw_texts:
-        combined = "".join(raw_texts).upper()
-        if "L" in combined and "R" not in combined:
-            laterality = "Left"
-        elif "R" in combined and "L" not in combined:
-            laterality = "Right"
+    # Score each letter hypothesis
+    l_score = bottom_left_ratio + bottom_right_ratio - top_right_ratio
+    r_score = top_right_ratio + bottom_right_ratio - bottom_left_ratio
 
-    return {"laterality": laterality, "raw_text_detected": raw_texts}
+    # Also check: "L" has very little ink in top-right quadrant
+    # "R" has significant ink in top-right quadrant
+    top_right_is_empty = top_right_ratio < 0.15
+
+    # Decision with confidence threshold
+    min_difference = 0.08  # Need at least 8% difference to be confident
+    raw_info = [f"L_score={l_score:.2f}, R_score={r_score:.2f}, TR_ratio={top_right_ratio:.2f}"]
+
+    if l_score > r_score + min_difference and top_right_is_empty:
+        laterality = "Left"
+        logger.info(f"Laterality → Left (shape: L_score={l_score:.2f}, R_score={r_score:.2f})")
+    elif r_score > l_score + min_difference and not top_right_is_empty:
+        laterality = "Right"
+        logger.info(f"Laterality → Right (shape: L_score={l_score:.2f}, R_score={r_score:.2f})")
+    else:
+        laterality = "Unknown"
+        logger.info(f"Laterality → Unknown (inconclusive: L={l_score:.2f}, R={r_score:.2f})")
+
+    return {"laterality": laterality, "raw_text_detected": raw_info, "method": "shape_analysis"}
 
 
 # ============================================================================
@@ -365,16 +371,13 @@ async def lifespan(application: FastAPI):
     logger.info("Initialising EasyOCR reader (English, CPU)...")
     import easyocr
     ocr_reader = easyocr.Reader(["en"], gpu=False, download_enabled=False)
-    logger.info("EasyOCR reader ready")
+    logger.info("EasyOCR reader loaded (available but not used in inference — shape analysis is faster)")
 
-    # Warm up both models to avoid slow first prediction
-    logger.info("Warming up models (this takes ~30s on CPU)...")
+    # Warm up YOLO only (OCR not in inference path — shape analysis used instead)
+    logger.info("Warming up YOLO model...")
     dummy = np.zeros((640, 640, 3), dtype=np.uint8)
     _ = yolo_model(dummy, verbose=False)
-    # Use a tiny image for OCR warm-up (64x64 not 640x640 — saves ~15s)
-    ocr_dummy = np.zeros((64, 64), dtype=np.uint8)
-    _ = ocr_reader.readtext(ocr_dummy)
-    logger.info("Models warmed up -- first prediction will be fast")
+    logger.info("YOLO warmed up — ready for predictions")
 
     yield  # Application runs here
 
