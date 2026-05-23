@@ -275,6 +275,11 @@ def render_annotated_image(img: np.ndarray, detections: list) -> str:
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
     # Encode to base64 PNG
+    max_dim = 1024
+    h, w = annotated.shape[:2]
+    if max(h, w) > max_dim:
+        scale = max_dim / max(h, w)
+        annotated = cv2.resize(annotated, (int(w * scale), int(h * scale)))
     _, buffer = cv2.imencode(".png", annotated)
     return base64.b64encode(buffer).decode("utf-8")
 
@@ -480,7 +485,7 @@ async def predict(
         raise HTTPException(status_code=400, detail=str(e))
 
     # ── YOLO inference ──
-    results = yolo_model(img, conf=conf_threshold, verbose=False)
+    results = yolo_model(img, conf=conf_threshold, imgsz=640, verbose=False)
     result = results[0]
 
     # Parse detections
