@@ -485,7 +485,7 @@ async def predict(
         raise HTTPException(status_code=400, detail=str(e))
 
     # ── YOLO inference ──
-    results = yolo_model(img, conf=conf_threshold, imgsz=640, verbose=False)
+    results = yolo_model(img, conf=conf_threshold, imgsz=640, verbose=False) # resize
     result = results[0]
 
     # Parse detections
