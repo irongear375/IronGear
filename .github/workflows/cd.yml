@@ -49,8 +49,15 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          # Add HF Spaces as a remote
-          git remote add hf https://iron-gear:${HF_TOKEN}@huggingface.co/spaces/${{ env.HF_SPACE }} || true
+          # Set up credentials for both remotes:
+          #   - github.com: needed by Git LFS to read LFS objects during push
+          #   - huggingface.co: needed by git push to authenticate with HF Spaces
+          git config --global credential.helper store
+          echo "https://x-access-token:${{ github.token }}@github.com" >> ~/.git-credentials
+          echo "https://iron-gear:${HF_TOKEN}@huggingface.co" >> ~/.git-credentials
+
+          # Add HF Spaces as a remote (without token in URL — credentials from store)
+          git remote add hf https://huggingface.co/spaces/${{ env.HF_SPACE }} || true
 
           # Push full repo — .hfignore excludes .github/, tests/,
           # tests, .github/, data/, etc. from the Space build context
