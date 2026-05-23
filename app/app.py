@@ -5,7 +5,7 @@ SCRUM-47: Implement FastAPI backend with all PRD endpoints
 Endpoints:
     GET  /          Serves index.html (web UI)
     GET  /health    Health check (CD smoke test target)
-    POST /predict   Core inference — YOLO11l + EasyOCR laterality
+    POST /predict   Core inference — YOLO11l + CV-based laterality
     GET  /log       Recent prediction log entries
     POST /feedback  Clinician feedback capture
     GET  /metrics   Aggregate monitoring statistics (SCRUM-53)
@@ -84,9 +84,8 @@ def _json_default(obj):
 # Model loading (once on startup, kept resident)
 # ============================================================================
 
-# These are populated in the lifespan handler
+# Populated in the lifespan handler
 yolo_model = None
-ocr_reader = None
 
 
 # ============================================================================
@@ -139,9 +138,10 @@ def preprocess_image(file_bytes: bytes) -> np.ndarray:
 # We threshold the crop, divide into quadrants, and compare pixel densities.
 # Total time: <5 milliseconds (vs 70,000 milliseconds for EasyOCR).
 #
-# EasyOCR remains loaded for the /health warm-up but is NOT called during
-# /predict. In a production deployment with GPU, EasyOCR would run in <1s
-# and could be re-enabled.
+# EasyOCR was removed from the runtime entirely in Sprint 3 after multiple
+# failed attempts to reduce its latency on CPU-only hosting.
+# In a production deployment with GPU, EasyOCR could be re-enabled as it
+# would run in <1s.
 # ============================================================================
 
 def extract_laterality(img: np.ndarray, text_boxes: list) -> dict:
@@ -360,20 +360,15 @@ from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def lifespan(application: FastAPI):
-    """Load models on startup, release on shutdown."""
-    global yolo_model, ocr_reader
+    """Load YOLO model on startup, release on shutdown."""
+    global yolo_model
 
     logger.info(f"Loading YOLO model from {MODEL_PATH}...")
     from ultralytics import YOLO
     yolo_model = YOLO(MODEL_PATH)
     logger.info(f"YOLO model loaded: {MODEL_VERSION}")
 
-    logger.info("Initialising EasyOCR reader (English, CPU)...")
-    import easyocr
-    ocr_reader = easyocr.Reader(["en"], gpu=False, download_enabled=False)
-    logger.info("EasyOCR reader loaded (available but not used in inference — shape analysis is faster)")
-
-    # Warm up YOLO only (OCR not in inference path — shape analysis used instead)
+    # Warm up YOLO (first inference is slow due to lazy init)
     logger.info("Warming up YOLO model...")
     dummy = np.zeros((640, 640, 3), dtype=np.uint8)
     _ = yolo_model(dummy, verbose=False)
@@ -381,9 +376,8 @@ async def lifespan(application: FastAPI):
 
     yield  # Application runs here
 
-    logger.info("Shutting down — releasing models")
+    logger.info("Shutting down — releasing model")
     yolo_model = None
-    ocr_reader = None
 
 
 app = FastAPI(
@@ -511,7 +505,7 @@ async def predict(
         if cls_name == "text":
             text_boxes.append(xyxy)
 
-    # ── EasyOCR laterality extraction ──
+    # ── CV-based laterality extraction ──
     laterality_info = extract_laterality(img, text_boxes)
 
     # ── Assemble clinical report ──

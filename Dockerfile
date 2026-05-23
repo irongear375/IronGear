@@ -5,8 +5,8 @@
 # Target: Hugging Face Spaces (Docker SDK, free tier)
 #   - Port 7860 (required by HF Spaces)
 #   - CPU-only inference (no GPU on free tier)
-#   - EasyOCR weights pre-cached at build time
 #   - best.pt bundled at build time
+#   - EasyOCR removed from runtime (replaced with CV-based shape analysis)
 #   - Image size target: < 3 GB
 # ============================================================================
 
@@ -62,14 +62,6 @@ RUN mkdir -p /data && chown appuser:appuser /data
 RUN chown -R appuser:appuser /app
 USER appuser
 
-# ── Pre-cache EasyOCR model weights at build time ──
-# This avoids ~500 MB download on first request at runtime.
-# Downloads English detection + recognition models to /home/appuser/.EasyOCR/
-RUN python -c "\
-import easyocr; \
-reader = easyocr.Reader(['en'], gpu=False, download_enabled=True); \
-print('EasyOCR weights cached successfully')"
-
 # ── Environment variables ──
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -80,7 +72,7 @@ ENV PYTHONUNBUFFERED=1 \
     PORT=7860
 
 # ── Health check ──
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD curl -f http://localhost:7860/health || exit 1
 
 # ── Expose port and run ──
